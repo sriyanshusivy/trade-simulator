@@ -1796,3 +1796,316 @@ input:focus-visible {
       1fr 1fr;
   }
 }
+
+/* ========================================
+   LIVE CHART MODAL / EXPANDED VIEW
+======================================== */
+
+.chart-modal-backdrop {
+  position: fixed;
+
+  inset: 0;
+
+  z-index: 9999;
+
+  display: flex;
+
+  align-items: center;
+  justify-content: center;
+
+  padding: 35px;
+
+  background: rgba(15, 16, 15, 0.58);
+
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.chart-modal {
+  width: min(1100px, 94vw);
+
+  max-height: 90vh;
+
+  overflow: hidden;
+
+  padding: 30px;
+
+  border: 1px solid #d7d9d7;
+
+  border-radius: 16px;
+
+  background: #f7f8f7;
+
+  box-shadow:
+    0 30px 100px
+    rgba(0, 0, 0, 0.28);
+}
+
+.chart-modal-header {
+  display: flex;
+
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 20px;
+
+  margin-bottom: 10px;
+}
+
+.chart-modal-header h2 {
+  margin: 5px 0 0;
+
+  font-size: 25px;
+
+  font-weight: 400;
+
+  letter-spacing: -1px;
+}
+
+.chart-close {
+  width: 42px;
+  height: 42px;
+
+  display: grid;
+
+  place-items: center;
+
+  border: 1px solid #cfd2cf;
+
+  border-radius: 50%;
+
+  background: transparent;
+
+  color: #171817;
+
+  font-size: 22px;
+
+  cursor: pointer;
+
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.chart-close:hover {
+  background: #171817;
+
+  color: white;
+}
+
+.modal-price {
+  margin: 22px 0 10px;
+
+  font-size: 38px;
+
+  font-weight: 400;
+
+  letter-spacing: -2px;
+}
+
+.chart-modal .live-chart {
+  width: 100%;
+
+  min-height: 430px;
+
+  margin-top: 12px;
+
+  border-top: 1px solid #dedfde;
+
+  border-bottom: 1px solid #dedfde;
+}
+
+.modal-chart-footer {
+  display: flex;
+
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 20px;
+
+  padding-top: 14px;
+
+  margin-top: 8px;
+
+  color: #858885;
+
+  font-size: 7px;
+
+  letter-spacing: 0.4px;
+}
+
+/* ========================================
+   INLINE LIVE CHART
+======================================== */
+
+.market-chart-card {
+  overflow: hidden;
+
+  padding: 18px;
+
+  border-radius: 10px;
+
+  background: #fbfbfa;
+}
+
+.chart-header {
+  display: flex;
+
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 15px;
+}
+
+.chart-header > div:first-child {
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 5px;
+}
+
+.chart-header strong {
+  font-size: 12px;
+
+  font-weight: 400;
+}
+
+.chart-actions {
+  display: flex;
+
+  align-items: center;
+
+  gap: 8px;
+}
+
+.chart-live {
+  color: #5f625f;
+
+  font-size: 7px;
+}
+
+.chart-actions button {
+  padding: 7px 9px;
+
+  border: 1px solid #bfc2bf;
+
+  border-radius: 5px;
+
+  background: transparent;
+
+  color: #171817;
+
+  font-size: 7px;
+
+  cursor: pointer;
+}
+
+.chart-actions button:hover {
+  background: #171817;
+
+  color: white;
+}
+
+.chart-current-price {
+  margin-top: 17px;
+
+  font-size: 24px;
+
+  letter-spacing: -1px;
+}
+
+.live-chart {
+  width: 100%;
+
+  min-height: 210px;
+
+  margin-top: 10px;
+}
+
+.chart-loading {
+  min-height: 210px;
+
+  display: grid;
+
+  place-items: center;
+
+  color: #888b88;
+
+  font-size: 8px;
+}
+
+.chart-footer {
+  display: flex;
+
+  justify-content: space-between;
+
+  gap: 15px;
+
+  padding-top: 11px;
+
+  border-top: 1px solid #d8dad8;
+
+  color: #888b88;
+
+  font-size: 6px;
+}
+
+/* ========================================
+   MOBILE MODAL
+======================================== */
+
+@media (max-width: 700px) {
+  .chart-modal-backdrop {
+    padding: 10px;
+  }
+
+  .chart-modal {
+    width: 100%;
+
+    padding: 18px;
+  }
+
+  .modal-price {
+    font-size: 28px;
+  }
+
+  .chart-modal .live-chart {
+    min-height: 300px;
+  }
+
+  .modal-chart-footer {
+    flex-wrap: wrap;
+  }
+}
+
+.chart-range-buttons {
+  display: flex;
+  gap: 6px;
+
+  margin-top: 14px;
+  margin-bottom: 8px;
+}
+
+.chart-range-buttons button {
+  padding: 6px 9px;
+
+  border: 1px solid var(--border);
+
+  border-radius: 5px;
+
+  background: transparent;
+
+  color: var(--muted);
+
+  font-size: 7px;
+}
+
+.chart-range-buttons button:hover,
+.chart-range-buttons button.active {
+  background: #171817;
+
+  border-color: #171817;
+
+  color: #ffffff;
+}

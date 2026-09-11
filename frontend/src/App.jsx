@@ -1,4 +1,10 @@
-import { useEffect, useState } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+
+import LiveChart from "./LiveChart";
 
 const API = "http://localhost:5000";
 
@@ -8,11 +14,13 @@ const ASSETS = {
     pair: "BTC / USDT",
     mark: "₿",
   },
+
   ETH: {
     name: "Ethereum",
     pair: "ETH / USDT",
     mark: "Ξ",
   },
+
   SOL: {
     name: "Solana",
     pair: "SOL / USDT",
@@ -20,7 +28,34 @@ const ASSETS = {
   },
 };
 
-function formatMoney(value, decimals = 2) {
+const CHART_RANGES = {
+  "1H": {
+    interval: "1m",
+    limit: 60,
+  },
+
+  "4H": {
+    interval: "5m",
+    limit: 48,
+  },
+
+  "1D": {
+    interval: "15m",
+    limit: 96,
+  },
+
+  "1W": {
+    interval: "1h",
+    limit: 168,
+  },
+
+  "1M": {
+    interval: "4h",
+    limit: 180,
+  },
+};
+
+function formatMoney(value) {
   const number = Number(value);
 
   if (!Number.isFinite(number)) {
@@ -28,21 +63,29 @@ function formatMoney(value, decimals = 2) {
   }
 
   return `$${number.toLocaleString(undefined, {
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   })}`;
 }
 
 function formatPrice(value) {
-  if (!value) return "Loading...";
+  const number = Number(value);
 
-  return `$${Number(value).toLocaleString(undefined, {
+  if (!Number.isFinite(number) || !number) {
+    return "Loading...";
+  }
+
+  return `$${number.toLocaleString(undefined, {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
 }
 
 function App() {
+  /* ========================================
+     MAIN STATE
+  ======================================== */
+
   const [backendStatus, setBackendStatus] =
     useState("Checking");
 
@@ -61,6 +104,29 @@ function App() {
   const [selectedCoin, setSelectedCoin] =
     useState("BTC");
 
+  const selectedCoinRef =
+    useRef("BTC");
+
+  /* ========================================
+     CHART STATE
+  ======================================== */
+
+  const [priceHistory, setPriceHistory] =
+    useState([]);
+
+  const [chartRange, setChartRange] =
+    useState("1H");
+
+  const [historyLoading, setHistoryLoading] =
+    useState(true);
+
+  const [isChartOpen, setIsChartOpen] =
+    useState(false);
+
+  /* ========================================
+     TRADE STATE
+  ======================================== */
+
   const [tradeMode, setTradeMode] =
     useState("BUY");
 
@@ -76,26 +142,49 @@ function App() {
   const [isTrading, setIsTrading] =
     useState(false);
 
-  /* =========================================
-     INITIAL DATA + WEBSOCKET
-  ========================================= */
+  /* ========================================
+     KEEP SELECTED COIN REF UPDATED
+  ======================================== */
 
   useEffect(() => {
+    selectedCoinRef.current =
+      selectedCoin;
+  }, [selectedCoin]);
+
+  /* ========================================
+     INITIAL BACKEND DATA + WEBSOCKET
+  ======================================== */
+
+  useEffect(() => {
+    /* Backend health */
+
     fetch(`${API}/api/health`)
-      .then((response) => response.json())
+      .then((response) =>
+        response.json()
+      )
       .then((data) => {
         if (data.success) {
-          setBackendStatus("Connected");
+          setBackendStatus(
+            "Connected"
+          );
         } else {
-          setBackendStatus("Disconnected");
+          setBackendStatus(
+            "Disconnected"
+          );
         }
       })
       .catch(() => {
-        setBackendStatus("Disconnected");
+        setBackendStatus(
+          "Disconnected"
+        );
       });
 
+    /* Portfolio */
+
     fetch(`${API}/api/portfolio`)
-      .then((response) => response.json())
+      .then((response) =>
+        response.json()
+      )
       .then((data) => {
         if (data.success) {
           setPortfolio(data);
@@ -108,11 +197,17 @@ function App() {
         );
       });
 
+    /* Trade history */
+
     fetch(`${API}/api/trades`)
-      .then((response) => response.json())
+      .then((response) =>
+        response.json()
+      )
       .then((data) => {
         if (data.success) {
-          setTrades(data.trades);
+          setTrades(
+            data.trades
+          );
         }
       })
       .catch((error) => {
@@ -122,9 +217,12 @@ function App() {
         );
       });
 
-    const socket = new WebSocket(
-      "wss://stream.binance.com:9443/stream?streams=btcusdt@trade/ethusdt@trade/solusdt@trade"
-    );
+    /* Binance live WebSocket */
+
+    const socket =
+      new WebSocket(
+        "wss://stream.binance.com:9443/stream?streams=btcusdt@trade/ethusdt@trade/solusdt@trade"
+      );
 
     socket.onopen = () => {
       console.log(
@@ -132,42 +230,134 @@ function App() {
       );
     };
 
-    socket.onmessage = (event) => {
+    socket.onmessage = (
+      event
+    ) => {
       try {
-        const message = JSON.parse(
-          event.data
-        );
+        const message =
+          JSON.parse(
+            event.data
+          );
 
         const symbol =
           message?.data?.s;
 
         const price =
-          Number(message?.data?.p);
+          Number(
+            message?.data?.p
+          );
 
-        if (!Number.isFinite(price)) {
+        if (
+          !Number.isFinite(
+            price
+          )
+        ) {
           return;
         }
 
-        if (symbol === "BTCUSDT") {
-          setPrices((previous) => ({
-            ...previous,
-            BTC: price,
-          }));
+        let coin = null;
+
+        if (
+          symbol ===
+          "BTCUSDT"
+        ) {
+          coin = "BTC";
         }
 
-        if (symbol === "ETHUSDT") {
-          setPrices((previous) => ({
-            ...previous,
-            ETH: price,
-          }));
+        if (
+          symbol ===
+          "ETHUSDT"
+        ) {
+          coin = "ETH";
         }
 
-        if (symbol === "SOLUSDT") {
-          setPrices((previous) => ({
-            ...previous,
-            SOL: price,
-          }));
+        if (
+          symbol ===
+          "SOLUSDT"
+        ) {
+          coin = "SOL";
         }
+
+        if (!coin) {
+          return;
+        }
+
+        /* Update visible market prices */
+
+        setPrices(
+          (previous) => ({
+            ...previous,
+            [coin]: price,
+          })
+        );
+
+        /*
+          Only append chart points for
+          whichever coin the user currently
+          has selected.
+        */
+
+        if (
+          coin !==
+          selectedCoinRef.current
+        ) {
+          return;
+        }
+
+        const timestamp =
+          Math.floor(
+            Date.now() / 1000
+          );
+
+        setPriceHistory(
+          (previous) => {
+            const lastPoint =
+              previous[
+                previous.length -
+                  1
+              ];
+
+            /*
+              Multiple trades can arrive within
+              the same second.
+
+              Lightweight Charts requires
+              ordered timestamps, so replace
+              the current-second point.
+            */
+
+            if (
+              lastPoint &&
+              lastPoint.time ===
+                timestamp
+            ) {
+              return [
+                ...previous.slice(
+                  0,
+                  -1
+                ),
+
+                {
+                  time:
+                    timestamp,
+                  value:
+                    price,
+                },
+              ];
+            }
+
+            return [
+              ...previous,
+
+              {
+                time:
+                  timestamp,
+                value:
+                  price,
+              },
+            ].slice(-500);
+          }
+        );
       } catch (error) {
         console.error(
           "WebSocket message error:",
@@ -176,7 +366,9 @@ function App() {
       }
     };
 
-    socket.onerror = (error) => {
+    socket.onerror = (
+      error
+    ) => {
       console.error(
         "WebSocket error:",
         error
@@ -188,281 +380,505 @@ function App() {
     };
   }, []);
 
-  /* =========================================
-     REFRESH DATABASE DATA
-  ========================================= */
+  /* ========================================
+     LOAD HISTORICAL CHART DATA
+  ======================================== */
 
-  const refreshPortfolio = async () => {
-    const response = await fetch(
-      `${API}/api/portfolio`
-    );
+  useEffect(() => {
+    const controller =
+      new AbortController();
 
-    const data = await response.json();
+    const loadHistory =
+      async () => {
+        try {
+          setHistoryLoading(
+            true
+          );
 
-    if (data.success) {
-      setPortfolio(data);
-    }
-  };
+          const config =
+            CHART_RANGES[
+              chartRange
+            ];
 
-  const refreshTrades = async () => {
-    const response = await fetch(
-      `${API}/api/trades`
-    );
+          const url =
+            `${API}/api/market/history` +
+            `?symbol=${selectedCoin}` +
+            `&interval=${config.interval}` +
+            `&limit=${config.limit}`;
 
-    const data = await response.json();
+          const response =
+            await fetch(
+              url,
+              {
+                signal:
+                  controller.signal,
+              }
+            );
 
-    if (data.success) {
-      setTrades(data.trades);
-    }
-  };
+          const data =
+            await response.json();
 
-  const refreshData = async () => {
-    await Promise.all([
-      refreshPortfolio(),
-      refreshTrades(),
-    ]);
-  };
+          if (
+            data.success &&
+            Array.isArray(
+              data.history
+            )
+          ) {
+            /*
+              Remove any accidental duplicated
+              timestamps and ensure ordering.
+            */
 
-  /* =========================================
+            const unique =
+              new Map();
+
+            data.history.forEach(
+              (point) => {
+                unique.set(
+                  Number(
+                    point.time
+                  ),
+                  {
+                    time:
+                      Number(
+                        point.time
+                      ),
+
+                    value:
+                      Number(
+                        point.value
+                      ),
+                  }
+                );
+              }
+            );
+
+            const cleaned =
+              Array.from(
+                unique.values()
+              ).sort(
+                (a, b) =>
+                  a.time -
+                  b.time
+              );
+
+            setPriceHistory(
+              cleaned
+            );
+          } else {
+            setPriceHistory(
+              []
+            );
+          }
+        } catch (error) {
+          if (
+            error.name !==
+            "AbortError"
+          ) {
+            console.error(
+              "Historical chart error:",
+              error
+            );
+          }
+        } finally {
+          if (
+            !controller.signal
+              .aborted
+          ) {
+            setHistoryLoading(
+              false
+            );
+          }
+        }
+      };
+
+    loadHistory();
+
+    return () => {
+      controller.abort();
+    };
+  }, [
+    selectedCoin,
+    chartRange,
+  ]);
+
+  /* ========================================
+     REFRESH PORTFOLIO
+  ======================================== */
+
+  const refreshPortfolio =
+    async () => {
+      const response =
+        await fetch(
+          `${API}/api/portfolio`
+        );
+
+      const data =
+        await response.json();
+
+      if (data.success) {
+        setPortfolio(data);
+      }
+    };
+
+  /* ========================================
+     REFRESH TRADES
+  ======================================== */
+
+  const refreshTrades =
+    async () => {
+      const response =
+        await fetch(
+          `${API}/api/trades`
+        );
+
+      const data =
+        await response.json();
+
+      if (data.success) {
+        setTrades(
+          data.trades
+        );
+      }
+    };
+
+  const refreshData =
+    async () => {
+      await Promise.all([
+        refreshPortfolio(),
+        refreshTrades(),
+      ]);
+    };
+
+  /* ========================================
      PORTFOLIO HELPERS
-  ========================================= */
+  ======================================== */
 
-  const getHolding = (symbol) => {
-    if (!portfolio?.holdings) {
+  const getHolding = (
+    symbol
+  ) => {
+    if (
+      !portfolio?.holdings
+    ) {
       return 0;
     }
 
     const holding =
       portfolio.holdings.find(
         (item) =>
-          item.symbol === symbol
+          item.symbol ===
+          symbol
       );
 
     return holding
-      ? Number(holding.quantity)
+      ? Number(
+          holding.quantity
+        )
       : 0;
   };
 
   const cashBalance =
-    portfolio?.user?.usdBalance !== undefined
+    portfolio?.user
+      ?.usdBalance !==
+    undefined
       ? Number(
-          portfolio.user.usdBalance
+          portfolio.user
+            .usdBalance
         )
       : 0;
 
   const holdingsValue =
-    Object.keys(ASSETS).reduce(
-      (total, symbol) => {
+    Object.keys(
+      ASSETS
+    ).reduce(
+      (
+        total,
+        symbol
+      ) => {
         const quantity =
-          getHolding(symbol);
+          getHolding(
+            symbol
+          );
 
         const price =
           Number(
-            prices[symbol] || 0
+            prices[
+              symbol
+            ] || 0
           );
 
         return (
-          total + quantity * price
+          total +
+          quantity *
+            price
         );
       },
       0
     );
 
   const totalPortfolioValue =
-    cashBalance + holdingsValue;
+    cashBalance +
+    holdingsValue;
 
   const selectedHolding =
-    getHolding(selectedCoin);
+    getHolding(
+      selectedCoin
+    );
 
   const selectedPrice =
-    prices[selectedCoin];
+    prices[
+      selectedCoin
+    ];
 
   const selectedAsset =
-    ASSETS[selectedCoin];
+    ASSETS[
+      selectedCoin
+    ];
 
-  /* =========================================
+  /* ========================================
      BUY
-  ========================================= */
+  ======================================== */
 
-  const handleBuy = async () => {
-    const amount =
-      Number(buyAmount);
-
-    const currentPrice =
-      prices[selectedCoin];
-
-    if (
-      !Number.isFinite(amount) ||
-      amount <= 0
-    ) {
-      setTradeMessage(
-        "Enter a valid USD amount."
-      );
-      return;
-    }
-
-    if (!currentPrice) {
-      setTradeMessage(
-        "Live market price unavailable."
-      );
-      return;
-    }
-
-    try {
-      setIsTrading(true);
-
-      setTradeMessage(
-        "Executing market order..."
-      );
-
-      const response = await fetch(
-        `${API}/api/trade/buy`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type":
-              "application/json",
-          },
-          body: JSON.stringify({
-            symbol: selectedCoin,
-            usdAmount: amount,
-            price: currentPrice,
-          }),
-        }
-      );
-
-      const data =
-        await response.json();
-
-      if (!data.success) {
-        setTradeMessage(
-          data.message ||
-            "Buy order failed."
+  const handleBuy =
+    async () => {
+      const amount =
+        Number(
+          buyAmount
         );
+
+      const currentPrice =
+        prices[
+          selectedCoin
+        ];
+
+      if (
+        !Number.isFinite(
+          amount
+        ) ||
+        amount <= 0
+      ) {
+        setTradeMessage(
+          "Enter a valid USD amount."
+        );
+
         return;
       }
 
-      setTradeMessage(
-        `Bought ${Number(
-          data.quantity
-        ).toFixed(
-          8
-        )} ${selectedCoin} at ${formatPrice(
-          currentPrice
-        )}`
-      );
+      if (!currentPrice) {
+        setTradeMessage(
+          "Live market price unavailable."
+        );
 
-      setBuyAmount("");
+        return;
+      }
 
-      await refreshData();
-    } catch (error) {
-      console.error(
-        "BUY error:",
-        error
-      );
+      try {
+        setIsTrading(
+          true
+        );
 
-      setTradeMessage(
-        "Unable to complete BUY order."
-      );
-    } finally {
-      setIsTrading(false);
-    }
-  };
+        setTradeMessage(
+          "Executing market order..."
+        );
 
-  /* =========================================
+        const response =
+          await fetch(
+            `${API}/api/trade/buy`,
+            {
+              method:
+                "POST",
+
+              headers: {
+                "Content-Type":
+                  "application/json",
+              },
+
+              body:
+                JSON.stringify(
+                  {
+                    symbol:
+                      selectedCoin,
+
+                    usdAmount:
+                      amount,
+
+                    price:
+                      currentPrice,
+                  }
+                ),
+            }
+          );
+
+        const data =
+          await response.json();
+
+        if (
+          !data.success
+        ) {
+          setTradeMessage(
+            data.message ||
+              "Buy order failed."
+          );
+
+          return;
+        }
+
+        setTradeMessage(
+          `Bought ${Number(
+            data.quantity
+          ).toFixed(
+            8
+          )} ${selectedCoin} at ${formatPrice(
+            currentPrice
+          )}`
+        );
+
+        setBuyAmount(
+          ""
+        );
+
+        await refreshData();
+      } catch (error) {
+        console.error(
+          "BUY error:",
+          error
+        );
+
+        setTradeMessage(
+          "Unable to complete BUY order."
+        );
+      } finally {
+        setIsTrading(
+          false
+        );
+      }
+    };
+
+  /* ========================================
      SELL
-  ========================================= */
+  ======================================== */
 
-  const handleSell = async () => {
-    const quantity =
-      Number(sellQuantity);
-
-    const currentPrice =
-      prices[selectedCoin];
-
-    if (
-      !Number.isFinite(quantity) ||
-      quantity <= 0
-    ) {
-      setTradeMessage(
-        "Enter a valid quantity."
-      );
-      return;
-    }
-
-    if (!currentPrice) {
-      setTradeMessage(
-        "Live market price unavailable."
-      );
-      return;
-    }
-
-    try {
-      setIsTrading(true);
-
-      setTradeMessage(
-        "Executing market order..."
-      );
-
-      const response = await fetch(
-        `${API}/api/trade/sell`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type":
-              "application/json",
-          },
-          body: JSON.stringify({
-            symbol: selectedCoin,
-            quantity,
-            price: currentPrice,
-          }),
-        }
-      );
-
-      const data =
-        await response.json();
-
-      if (!data.success) {
-        setTradeMessage(
-          data.message ||
-            "Sell order failed."
+  const handleSell =
+    async () => {
+      const quantity =
+        Number(
+          sellQuantity
         );
+
+      const currentPrice =
+        prices[
+          selectedCoin
+        ];
+
+      if (
+        !Number.isFinite(
+          quantity
+        ) ||
+        quantity <= 0
+      ) {
+        setTradeMessage(
+          "Enter a valid quantity."
+        );
+
         return;
       }
 
-      setTradeMessage(
-        `Sold ${Number(
-          data.soldQuantity
-        ).toFixed(
-          8
-        )} ${selectedCoin} at ${formatPrice(
-          currentPrice
-        )}`
-      );
+      if (!currentPrice) {
+        setTradeMessage(
+          "Live market price unavailable."
+        );
 
-      setSellQuantity("");
+        return;
+      }
 
-      await refreshData();
-    } catch (error) {
-      console.error(
-        "SELL error:",
-        error
-      );
+      try {
+        setIsTrading(
+          true
+        );
 
-      setTradeMessage(
-        "Unable to complete SELL order."
-      );
-    } finally {
-      setIsTrading(false);
-    }
-  };
+        setTradeMessage(
+          "Executing market order..."
+        );
 
-  /* =========================================
-     QUICK BUY AMOUNTS
-  ========================================= */
+        const response =
+          await fetch(
+            `${API}/api/trade/sell`,
+            {
+              method:
+                "POST",
 
-  const setQuickBuy = (amount) => {
+              headers: {
+                "Content-Type":
+                  "application/json",
+              },
+
+              body:
+                JSON.stringify(
+                  {
+                    symbol:
+                      selectedCoin,
+
+                    quantity,
+
+                    price:
+                      currentPrice,
+                  }
+                ),
+            }
+          );
+
+        const data =
+          await response.json();
+
+        if (
+          !data.success
+        ) {
+          setTradeMessage(
+            data.message ||
+              "Sell order failed."
+          );
+
+          return;
+        }
+
+        setTradeMessage(
+          `Sold ${Number(
+            data.soldQuantity
+          ).toFixed(
+            8
+          )} ${selectedCoin} at ${formatPrice(
+            currentPrice
+          )}`
+        );
+
+        setSellQuantity(
+          ""
+        );
+
+        await refreshData();
+      } catch (error) {
+        console.error(
+          "SELL error:",
+          error
+        );
+
+        setTradeMessage(
+          "Unable to complete SELL order."
+        );
+      } finally {
+        setIsTrading(
+          false
+        );
+      }
+    };
+
+  /* ========================================
+     QUICK BUY
+  ======================================== */
+
+  const setQuickBuy = (
+    amount
+  ) => {
     setBuyAmount(
       String(
         Math.min(
@@ -473,9 +889,9 @@ function App() {
     );
   };
 
-  /* =========================================
+  /* ========================================
      QUICK SELL
-  ========================================= */
+  ======================================== */
 
   const setQuickSell = (
     percentage
@@ -485,28 +901,72 @@ function App() {
       percentage;
 
     setSellQuantity(
-      quantity.toFixed(8)
+      quantity.toFixed(
+        8
+      )
     );
   };
 
-  /* =========================================
-     ESTIMATE
-  ========================================= */
+  /* ========================================
+     ESTIMATES
+  ======================================== */
 
   const estimatedBuyQuantity =
     selectedPrice &&
-    Number(buyAmount) > 0
-      ? Number(buyAmount) /
+    Number(
+      buyAmount
+    ) > 0
+      ? Number(
+          buyAmount
+        ) /
         selectedPrice
       : 0;
 
   const estimatedSellValue =
     selectedPrice &&
-    Number(sellQuantity) > 0
+    Number(
+      sellQuantity
+    ) > 0
       ? Number(
           sellQuantity
-        ) * selectedPrice
+        ) *
+        selectedPrice
       : 0;
+
+  /* ========================================
+     RANGE BUTTONS
+  ======================================== */
+
+  const renderRangeButtons =
+    () => (
+      <div className="chart-range-buttons">
+        {Object.keys(
+          CHART_RANGES
+        ).map(
+          (range) => (
+            <button
+              key={
+                range
+              }
+              type="button"
+              className={
+                chartRange ===
+                range
+                  ? "active"
+                  : ""
+              }
+              onClick={() =>
+                setChartRange(
+                  range
+                )
+              }
+            >
+              {range}
+            </button>
+          )
+        )}
+      </div>
+    );
 
   return (
     <div className="app-shell">
@@ -520,7 +980,8 @@ function App() {
           onClick={() =>
             window.scrollTo({
               top: 0,
-              behavior: "smooth",
+              behavior:
+                "smooth",
             })
           }
         >
@@ -615,7 +1076,7 @@ function App() {
       </header>
 
       {/* =====================================
-          PAGE INTRO
+          INTRO
       ====================================== */}
 
       <section className="page-heading">
@@ -653,11 +1114,11 @@ function App() {
       </section>
 
       {/* =====================================
-          MAIN DESKTOP GRID
+          MAIN WORKSPACE
       ====================================== */}
 
       <main className="workspace">
-        {/* MARKET COLUMN */}
+        {/* MARKET */}
 
         <section
           className="workspace-panel market-column"
@@ -679,30 +1140,83 @@ function App() {
             </span>
           </div>
 
-          <div className="market-visual">
-            <div className="art-grid" />
+          {/* LIVE CHART */}
 
-            <div className="art-orbit orbit-one" />
-            <div className="art-orbit orbit-two" />
+          <div className="market-chart-card">
+            <div className="chart-header">
+              <div>
+                <span className="small-label">
+                  LIVE CHART
+                </span>
 
-            <div className="art-symbol">
-              {
-                selectedAsset.mark
-              }
+                <strong>
+                  {selectedCoin}
+                  {" / "}
+                  USDT
+                </strong>
+              </div>
+
+              <div className="chart-actions">
+                <span className="chart-live">
+                  ● LIVE
+                </span>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    setIsChartOpen(
+                      true
+                    )
+                  }
+                >
+                  EXPAND ↗
+                </button>
+              </div>
             </div>
 
-            <div className="market-art-bottom">
-              <span>
-                {
-                  selectedAsset.name
+            <div className="chart-current-price">
+              {formatPrice(
+                selectedPrice
+              )}
+            </div>
+
+            {renderRangeButtons()}
+
+            {historyLoading ? (
+              <div className="chart-loading">
+                Loading{" "}
+                {chartRange}{" "}
+                historical
+                data...
+              </div>
+            ) : priceHistory.length >
+              1 ? (
+              <LiveChart
+                data={
+                  priceHistory
                 }
+                height={210}
+              />
+            ) : (
+              <div className="chart-loading">
+                No chart data
+                available.
+              </div>
+            )}
+
+            <div className="chart-footer">
+              <span>
+                BINANCE MARKET DATA
               </span>
 
               <span>
-                REAL-TIME
+                {chartRange} +
+                LIVE
               </span>
             </div>
           </div>
+
+          {/* SELECTED ASSET */}
 
           <article className="featured-market">
             <div className="featured-market-top">
@@ -739,8 +1253,8 @@ function App() {
               price streamed from
               Binance. Orders are
               executed using the
-              market price shown
-              here.
+              displayed market
+              price.
             </p>
 
             <div className="market-meta">
@@ -757,6 +1271,8 @@ function App() {
               </span>
             </div>
           </article>
+
+          {/* ASSETS */}
 
           <div className="asset-list">
             {Object.entries(
@@ -825,7 +1341,9 @@ function App() {
           </div>
         </section>
 
-        {/* TRADE COLUMN */}
+        {/* =================================
+            TRADE
+        ================================== */}
 
         <section
           className="workspace-panel trade-column"
@@ -899,6 +1417,7 @@ function App() {
 
             <div className="progress-bottom">
               <span>$0</span>
+
               <span>
                 STARTED WITH
                 $10,000
@@ -1030,7 +1549,12 @@ function App() {
                 </div>
 
                 <div className="quick-buttons">
-                  {[25, 50, 100, 250].map(
+                  {[
+                    25,
+                    50,
+                    100,
+                    250,
+                  ].map(
                     (amount) => (
                       <button
                         key={
@@ -1078,9 +1602,7 @@ function App() {
                       : `BUY ${selectedCoin}`}
                   </span>
 
-                  <span>
-                    →
-                  </span>
+                  <span>→</span>
                 </button>
               </>
             ) : (
@@ -1199,18 +1721,14 @@ function App() {
                       : `SELL ${selectedCoin}`}
                   </span>
 
-                  <span>
-                    →
-                  </span>
+                  <span>→</span>
                 </button>
               </>
             )}
 
             {tradeMessage && (
               <div className="trade-message">
-                <span>
-                  ◌
-                </span>
+                <span>◌</span>
 
                 <p>
                   {
@@ -1222,7 +1740,9 @@ function App() {
           </article>
         </section>
 
-        {/* PORTFOLIO COLUMN */}
+        {/* =================================
+            PORTFOLIO
+        ================================== */}
 
         <section
           className="workspace-panel portfolio-column"
@@ -1253,8 +1773,15 @@ function App() {
               Demo Trader
             </h3>
 
-            <span>
-              PAPERTRADE.LOCAL
+            <span className="profile-username">
+              @
+              {portfolio?.user
+                ?.username ||
+                "demo"}
+            </span>
+
+            <span className="profile-account-type">
+              PAPER TRADING ACCOUNT
             </span>
 
             <div className="profile-icons">
@@ -1434,29 +1961,14 @@ function App() {
 
         <div className="activity-table">
           <div className="activity-table-head">
-            <span>
-              SIDE
-            </span>
-
-            <span>
-              ASSET
-            </span>
-
-            <span>
-              QUANTITY
-            </span>
-
+            <span>SIDE</span>
+            <span>ASSET</span>
+            <span>QUANTITY</span>
             <span>
               EXECUTION PRICE
             </span>
-
-            <span>
-              TOTAL
-            </span>
-
-            <span>
-              TIME
-            </span>
+            <span>TOTAL</span>
+            <span>TIME</span>
           </div>
 
           {trades.length ===
@@ -1537,6 +2049,10 @@ function App() {
         </div>
       </section>
 
+      {/* =====================================
+          FOOTER
+      ====================================== */}
+
       <footer className="footer">
         <span>
           PAPERTRADE /
@@ -1546,14 +2062,122 @@ function App() {
 
         <span>
           DATA PROVIDED BY
-          BINANCE PUBLIC
-          WEBSOCKET
+          BINANCE
         </span>
+
+        <a
+          href="https://www.tradingview.com/"
+          target="_blank"
+          rel="noreferrer"
+        >
+          CHARTS POWERED BY
+          TRADINGVIEW
+        </a>
 
         <span>
           FOR SIMULATION ONLY
         </span>
       </footer>
+
+      {/* =====================================
+          LARGE CHART POPUP
+      ====================================== */}
+
+      {isChartOpen && (
+        <div
+          className="chart-modal-backdrop"
+          onClick={() =>
+            setIsChartOpen(
+              false
+            )
+          }
+        >
+          <div
+            className="chart-modal"
+            onClick={(
+              event
+            ) =>
+              event.stopPropagation()
+            }
+          >
+            <div className="chart-modal-header">
+              <div>
+                <span className="small-label">
+                  LIVE MARKET
+                </span>
+
+                <h2>
+                  {
+                    selectedCoin
+                  }
+                  /USDT
+                </h2>
+              </div>
+
+              <button
+                type="button"
+                className="chart-close"
+                onClick={() =>
+                  setIsChartOpen(
+                    false
+                  )
+                }
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="modal-price">
+              {formatPrice(
+                selectedPrice
+              )}
+            </div>
+
+            {renderRangeButtons()}
+
+            {historyLoading ? (
+              <div className="chart-loading">
+                Loading{" "}
+                {chartRange}{" "}
+                historical
+                data...
+              </div>
+            ) : priceHistory.length >
+              1 ? (
+              <LiveChart
+                data={
+                  priceHistory
+                }
+                height={430}
+              />
+            ) : (
+              <div className="chart-loading">
+                No historical
+                chart data
+                available.
+              </div>
+            )}
+
+            <div className="modal-chart-footer">
+              <span>
+                BINANCE MARKET
+                HISTORY
+              </span>
+
+              <span>
+                {
+                  priceHistory.length
+                }{" "}
+                POINTS
+              </span>
+
+              <span>
+                ● LIVE
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

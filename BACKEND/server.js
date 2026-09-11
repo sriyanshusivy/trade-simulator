@@ -581,6 +581,101 @@ app.post("/api/trade/sell", (req, res) => {
 
 const PORT = 5000;
 
+/* ========================================
+   MARKET PRICE HISTORY
+======================================== */
+
+app.get("/api/market/history", async (req, res) => {
+  try {
+    const {
+      symbol = "BTC",
+      interval = "1m",
+      limit = "60",
+    } = req.query;
+
+    const allowedSymbols = [
+      "BTC",
+      "ETH",
+      "SOL",
+    ];
+
+    const allowedIntervals = [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h",
+      "1d",
+    ];
+
+    if (!allowedSymbols.includes(symbol)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid symbol",
+      });
+    }
+
+    if (!allowedIntervals.includes(interval)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid interval",
+      });
+    }
+
+    const safeLimit = Math.min(
+      Number(limit) || 60,
+      500
+    );
+
+    const url =
+      `https://api.binance.com/api/v3/klines` +
+      `?symbol=${symbol}USDT` +
+      `&interval=${interval}` +
+      `&limit=${safeLimit}`;
+
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      throw new Error(
+        "Failed to fetch Binance history"
+      );
+    }
+
+    const klines =
+      await response.json();
+
+    const history = klines.map(
+      (kline) => ({
+        time: Math.floor(
+          kline[0] / 1000
+        ),
+
+        value: Number(
+          kline[4]
+        ),
+      })
+    );
+
+    res.json({
+      success: true,
+      symbol,
+      interval,
+      history,
+    });
+  } catch (error) {
+    console.error(
+      "Market history error:",
+      error
+    );
+
+    res.status(500).json({
+      success: false,
+      message:
+        "Failed to load historical market data",
+    });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(
     `Server running on http://localhost:${PORT}`
