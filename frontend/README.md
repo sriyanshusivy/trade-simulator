@@ -1,16 +1,85 @@
-# React + Vite
+# PaperTrade — Real-Time Crypto Trade Simulator
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+PaperTrade is a full-stack paper-trading simulator that allows users to practice buying and selling cryptocurrencies using **live market prices** with **dummy USD** instead of real money.
 
-Currently, two official plugins are available:
+The application focuses on real-time market updates, safe trade execution, persistence, race-condition protection, and correct decimal handling.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+---
 
-## React Compiler
+## Features
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- Starts with **$10,000 dummy USD**
+- Live crypto prices for:
+  - Bitcoin (BTC)
+  - Ethereum (ETH)
+  - Solana (SOL)
+- Binance public WebSocket for real-time prices
+- Market BUY and SELL orders
+- Immediate USD balance update after trades
+- Immediate crypto holdings update after trades
+- Persistent trade history using SQLite
+- Recent activity table
+- Portfolio valuation using live prices
+- Race-condition protection for BUY orders
+- Decimal.js for safer financial calculations
+- Historical crypto charts using TradingView Lightweight Charts
+- Supported chart ranges:
+  - 1H
+  - 4H
+  - 1D
+  - 1W
+  - 1M
+- Expandable full-screen chart modal
+- Clean responsive desktop trading UI
 
-## Expanding the ESLint configuration
+---
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## Tech Stack
+
+### Frontend
+
+- React
+- Vite
+- JavaScript
+- CSS
+- TradingView Lightweight Charts
+
+### Backend
+
+- Node.js
+- Express
+- SQLite
+- better-sqlite3
+- Decimal.js
+- CORS
+
+### Market Data
+
+- Binance Public WebSocket
+- Binance Historical Market Data API
+
+---
+
+## Project Structure
+
+```text
+trade-simulator/
+│
+├── BACKEND/
+│   ├── database/
+│   │   └── db.js
+│   ├── server.js
+│   └── trade_simulator.db
+│
+├── frontend/
+│   ├── src/
+│   │   ├── App.jsx
+│   │   ├── LiveChart.jsx
+│   │   ├── index.css
+│   │   └── main.jsx
+│   ├── index.html
+│   ├── package.json
+│   └── package-lock.json
+│
+├── .gitignore
+└── README.md
